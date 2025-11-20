@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Figma Export</title>
+  <title>{{ title }}</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     html,body{height:100%;margin:0}
@@ -15,7 +15,7 @@
 </head>
 <body>
   <div class="canvas">
-    <div class="node-1-75"><div class="node-1-110"><div class="node-1-111"></div></div><div class="node-1-112">Sign in</div><div class="node-1-114"><div class="node-1-115"><div class="node-1-116">andy@gmail.com</div></div><div class="node-1-117"><div class="node-1-118">Password</div></div></div><div class="node-1-120"><div class="node-1-123">Sign in</div></div><div class="node-1-125"><div class="node-1-126">Create account</div></div><div class="node-1-127">Forgot password</div></div>
+    {{ body_html | safe }}
   </div>
 </body>
 </html>

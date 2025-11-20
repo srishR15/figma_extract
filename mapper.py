@@ -1,6 +1,5 @@
 from typing import Any, Dict, List, TypedDict
 
-
 class UiNode(TypedDict, total=False):
     id: str
     name: str
@@ -8,7 +7,6 @@ class UiNode(TypedDict, total=False):
     children: List["UiNode"]
     styles: Dict[str, Any]
     text: str
-
 
 def _detect_kind(node: Dict[str, Any]) -> str:
     t = node.get("type")
@@ -22,12 +20,9 @@ def _detect_kind(node: Dict[str, Any]) -> str:
         return "text"
     return "other"
 
-# Convert a raw Figma node into a generic UiNode with normalized style info
 def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
     kind = _detect_kind(node)
     styles: Dict[str, Any] = {}
-
-    # Absolute position & size
     box = node.get("absoluteBoundingBox")
     if box:
         styles["layout"] = {
@@ -36,8 +31,6 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
             "width": box.get("width", 0),
             "height": box.get("height", 0),
         }
-
-    # Auto-layout → flexbox
     layout_mode = node.get("layoutMode")
     if layout_mode and layout_mode != "NONE":
         styles["flex"] = {
@@ -46,32 +39,30 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
             "primaryAlign": node.get("primaryAxisAlignItems"),
             "counterAlign": node.get("counterAxisAlignItems"),
         }
-
-    # Fills (solid colors, gradients)
     fills = node.get("fills") or []
     if fills:
         styles["fills"] = fills
-
-    # Strokes (borders)
     strokes = node.get("strokes") or []
     if strokes:
         styles["strokes"] = strokes
-        styles["strokeWeight"] = node.get("strokeWeight", 1)
-        styles["strokeAlign"] = node.get("strokeAlign")
-
-    # Corner radius / per-corner radii
+    styles["strokeWeight"] = node.get("strokeWeight", 1)
+    styles["strokeAlign"] = node.get("strokeAlign")
     if "cornerRadius" in node:
         styles["cornerRadius"] = node["cornerRadius"]
     if "rectangleCornerRadii" in node:
         styles["cornerRadii"] = node["rectangleCornerRadii"]
-
-    # Text style
     if kind == "text" and node.get("style"):
         styles["textStyle"] = node["style"]
-
-    # Children
-    children = [map_figma_to_ui(c) for c in node.get("children", [])]
-
+    children = []
+    seen_ids = set()
+    for c in node.get("children", []):
+        if not c.get("visible", True):
+            continue
+        cid = c["id"]
+        if cid in seen_ids:
+            continue
+        seen_ids.add(cid)
+        children.append(map_figma_to_ui(c))
     ui: UiNode = {
         "id": node["id"],
         "name": node.get("name", ""),
@@ -79,8 +70,21 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
         "children": children,
         "styles": styles,
     }
-
     if kind == "text":
         ui["text"] = node.get("characters", "")
-
     return ui
+
+def apply_absolute_layout(node, parent_x=0, parent_y=0):
+    layout = node.get("styles", {}).get("layout", {})
+
+    rel_x = layout.get("x", 0)
+    rel_y = layout.get("y", 0)
+
+    abs_x = parent_x + rel_x
+    abs_y = parent_y + rel_y
+
+    layout["abs_x"] = abs_x
+    layout["abs_y"] = abs_y
+
+    for child in node.get("children", []):
+        apply_absolute_layout(child, abs_x, abs_y)

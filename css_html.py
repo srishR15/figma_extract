@@ -1,188 +1,237 @@
-from typing import Any, Dict
-from mapper import UiNode
+from jinja2 import Environment, FileSystemLoader
+from pathlib import Path
+from typing import Dict, Any
 
-def _rgba_from_paint(paint: Dict) -> str | None:
-    color = paint.get("color")
-    if not color:
-        return None
-    r = int(round(color["r"] * 255))
-    g = int(round(color["g"] * 255))
-    b = int(round(color["b"] * 255))
-    opacity = paint.get("opacity", color.get("a", 1))
-    return f"rgba({r}, {g}, {b}, {opacity})"
+# NOTE: UiNode is a TypedDict in mapper.py, but we avoid importing typing here
+# to keep this file compatible with your current project.
 
-def _gradient_from_paint(paint: Dict) -> str | None:
-    stops = paint.get("gradientStops")
+def _rgba_from_color(c: Dict[str, Any], opacity: float | None = None) -> str:
+    if not c:
+        return "rgba(0,0,0,0)"
+    r = int(round(c.get("r", 0) * 255))
+    g = int(round(c.get("g", 0) * 255))
+    b = int(round(c.get("b", 0) * 255))
+    a = 1.0
+    if opacity is not None:
+        a = opacity
+    else:
+        a = c.get("a", 1.0)
+    return f"rgba({r}, {g}, {b}, {a})"
+
+def _gradient_from_paint(paint: Dict[str, Any]) -> str | None:
+    stops = paint.get("gradientStops") or []
     if not stops:
         return None
     parts = []
-    for stop in stops:
-        c = stop["color"]
-        r = int(round(c["r"] * 255))
-        g = int(round(c["g"] * 255))
-        b = int(round(c["b"] * 255))
-        a = c.get("a", 1)
-        pos = int(round(stop["position"] * 100))
-        parts.append(f"rgba({r}, {g}, {b}, {a}) {pos}%")
+    for s in stops:
+        col = s["color"]
+        pos = int(round(s.get("position", 0) * 100))
+        parts.append(f"{_rgba_from_color(col)} {pos}%")
+    # Simplified: use left-to-right gradient
     return "linear-gradient(90deg, " + ", ".join(parts) + ")"
 
-def _escape_html(text: str) -> str:
-    return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
+def _extract_fill(styles: Dict[str, Any]) -> str | None:
+    fills = styles.get("fills") or []
+    if not fills:
+        return None
+    p = fills[0]
+    t = p.get("type", "")
+    if t == "SOLID":
+        color = p.get("color", {})
+        opacity = p.get("opacity", color.get("a", 1.0))
+        return _rgba_from_color(color, opacity)
+    if "GRADIENT" in t:
+        g = _gradient_from_paint(p)
+        return g
+    return None
 
-def generate_css(root: UiNode) -> tuple[str, dict[str, str]]:
-    lines = []
-    id_to_class = {}
+def _extract_stroke(styles: Dict[str, Any]) -> str | None:
+    strokes = styles.get("strokes") or []
+    if not strokes:
+        return None
+    s = strokes[0]
+    if s.get("type") == "SOLID":
+        col = s.get("color", {})
+        opacity = s.get("opacity", col.get("a", 1.0))
+        weight = styles.get("strokeWeight", 1)
+        return f"{weight}px solid {_rgba_from_color(col, opacity)}"
+    return None
 
-    # Global styles
-    lines.append(
-        "body { margin: 0; background: #111111; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }"
-    )
-    if root.get("styles", {}).get("layout"):
-        w = root["styles"]["layout"]["width"]
-        h = root["styles"]["layout"]["height"]
-        lines.append(f".canvas {{ margin: 0 auto; width: {w}px; height: {h}px; position: relative; }}")
+def _text_style_css(text_style: Dict[str, Any]) -> list[str]:
+    decls = []
+    if not text_style:
+        return decls
+    if "fontFamily" in text_style:
+        # fallback sans-serif
+        decls.append(f"font-family: '{text_style['fontFamily']}', sans-serif;")
+    if "fontSize" in text_style:
+        decls.append(f"font-size: {text_style['fontSize']}px;")
+    if "fontWeight" in text_style:
+        decls.append(f"font-weight: {int(text_style['fontWeight'])};")
+    if "lineHeightPx" in text_style:
+        decls.append(f"line-height: {text_style['lineHeightPx']}px;")
+    if "letterSpacing" in text_style:
+        decls.append(f"letter-spacing: {text_style['letterSpacing']}px;")
+    align = text_style.get("textAlignHorizontal")
+    if align:
+        mapping = {"LEFT":"left","CENTER":"center","RIGHT":"right","JUSTIFIED":"justify"}
+        decls.append(f"text-align: {mapping.get(align,'left')};")
+    return decls
 
-    def walk(node: UiNode, parent_is_flex=False):
-        node_id = node["id"]
-        class_name = "node_" + "".join(c if c.isalnum() else "_" for c in node_id)
-        id_to_class[node_id] = class_name
+# -------------------------------
+# CSS generator
+# -------------------------------
+def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
+    """
+    Improved CSS generator:
+      - Avoid absolute positioning for children of auto-layout/flex containers.
+      - Do not set background on text nodes; set color instead.
+      - Keep fills/strokes/cornerRadius/text styles as before.
+    """
+    lines: list[str] = []
+    root_layout = root.get("styles", {}).get("layout", {})
+    root_x = root_layout.get("x", 0)
+    root_y = root_layout.get("y", 0)
+    root_w = root_layout.get("width", 0)
+    root_h = root_layout.get("height", 0)
 
-        decl = []
-        styles = node.get("styles", {})
+    lines.append("/* Reset */")
+    lines.append("* { box-sizing: border-box; }")
+    lines.append("html, body { height: 100%; }")
+    lines.append("body { margin: 0; padding: 20px; background: #111; display:flex; justify-content:center; }")
+    lines.append(f".canvas {{ position: relative; width: {int(root_w)}px; height: {int(root_h)}px; background: transparent; }}")
 
-        # Flex container
+    def walk(n: Dict[str, Any], parent_is_flex: bool = False):
+        nid = n["id"]
+        cls = id_to_class.get(nid, "node_"+nid.replace(":", "_"))
+        styles = n.get("styles", {})
+        layout = styles.get("layout", {})
+
+        # Coordinates relative to root frame (keeps your approach)
+        x = layout.get("x", 0) - root_x
+        y = layout.get("y", 0) - root_y
+        w = layout.get("width", 0)
+        h = layout.get("height", 0)
+
+        decls: list[str] = []
+
+        # If the parent is a flex container, do NOT absolutely position this child.
+        if not parent_is_flex:
+            decls.append("position: absolute")
+            decls.append(f"left: {int(x)}px")
+            decls.append(f"top: {int(y)}px")
+        else:
+            # let flex layout position child; use box-sizing defaults
+            decls.append("position: static")
+
+        # Width/Height: keep widths/heights so fixed-size children still size,
+        # but for children of flex parents we avoid forcing absolute coordinates.
+        # If you want children to shrink/grow, you can add flex rules here.
+        decls.append(f"width: {int(w)}px")
+        decls.append(f"height: {int(h)}px")
+
+        # Auto-layout / flex for THIS node
         flex = styles.get("flex")
         if flex:
-            decl.append("display: flex")
-            decl.append(f"flex-direction: {flex.get('direction','row')}")
-            if flex.get("gap"):
-                decl.append(f"gap: {flex['gap']}px")
-            # Map Figma alignment to CSS
-            primary = flex.get("primaryAlign")
-            if primary:
-                mapping = {
-                    "MIN": "flex-start",
-                    "CENTER": "center",
-                    "MAX": "flex-end",
-                    "SPACE_BETWEEN": "space-between",
-                }
-                decl.append(f"justify-content: {mapping.get(primary,'flex-start')}")
-            counter = flex.get("counterAlign")
-            if counter:
-                mapping = {
-                    "MIN": "flex-start",
-                    "CENTER": "center",
-                    "MAX": "flex-end",
-                }
-                decl.append(f"align-items: {mapping.get(counter,'flex-start')}")
-            pad = flex.get("padding", {})
-            if pad:
-                decl.append(
-                    f"padding: {pad.get('top',0)}px {pad.get('right',0)}px {pad.get('bottom',0)}px {pad.get('left',0)}px"
-                )
-        else:
-            # Only use absolute positioning if parent is NOT flex
-            layout = styles.get("layout")
-            if layout and not parent_is_flex:
-                decl.append("position: absolute")
-                decl.append(f"left: {layout.get('x',0)}px")
-                decl.append(f"top: {layout.get('y',0)}px")
-                decl.append(f"width: {layout.get('width',0)}px")
-                decl.append(f"height: {layout.get('height',0)}px")
+            decls.append("display: flex")
+            direction = flex.get("direction", "column")
+            decls.append(f"flex-direction: {direction}")
+            gap = flex.get("gap", 0)
+            if gap:
+                decls.append(f"gap: {int(gap)}px")
+            align_map = {"MIN":"flex-start","CENTER":"center","MAX":"flex-end","SPACE_BETWEEN":"space-between"}
+            if flex.get("primaryAlign"):
+                decls.append(f"justify-content: {align_map.get(flex['primaryAlign'],'flex-start')}")
+            if flex.get("counterAlign"):
+                decls.append(f"align-items: {align_map.get(flex['counterAlign'],'flex-start')}")
 
-        # Fills
-        fills = styles.get("fills", [])
-        if fills:
-            paint = fills[0]
-            t = paint.get("type", "")
-            if t == "SOLID":
-                c = _rgba_from_paint(paint)
-                if c:
-                    decl.append(f"background-color: {c}")
-            elif "GRADIENT" in t:
-                g = _gradient_from_paint(paint)
-                if g:
-                    decl.append(f"background: {g}")
+        # Background / fills — but DO NOT set background for text nodes (we set color instead)
+        fill = _extract_fill(styles)
+        if fill and n.get("kind") != "text":
+            decls.append(f"background: {fill}")
 
-        # Strokes
-        strokes = styles.get("strokes", [])
-        if strokes:
-            paint = strokes[0]
-            c = _rgba_from_paint(paint)
-            weight = styles.get("strokeWeight", 1)
-            if c:
-                decl.append(f"border: {weight}px solid {c}")
+        # strokes / borders
+        stroke = _extract_stroke(styles)
+        if stroke:
+            decls.append(f"border: {stroke}")
 
-        # Border radius
+        # corner radius
         if "cornerRadius" in styles:
-            decl.append(f"border-radius: {styles['cornerRadius']}px")
+            decls.append(f"border-radius: {styles['cornerRadius']}px")
         elif "cornerRadii" in styles:
-            tl, tr, br, bl = styles["cornerRadii"]
-            decl.append(f"border-radius: {tl}px {tr}px {br}px {bl}px")
+            cr = styles["cornerRadii"]
+            decls.append(f"border-radius: {cr[0]}px {cr[1]}px {cr[2]}px {cr[3]}px")
 
-        # Text
-        if node["kind"] == "text":
-            ts = styles.get("textStyle", {})
-            if "fontFamily" in ts:
-                decl.append(f"font-family: '{ts['fontFamily']}', sans-serif")
-            if "fontSize" in ts:
-                decl.append(f"font-size: {ts['fontSize']}px")
-            if "fontWeight" in ts:
-                decl.append(f"font-weight: {int(ts['fontWeight'])}")
-            if "lineHeightPx" in ts:
-                decl.append(f"line-height: {ts['lineHeightPx']}px")
-            if "letterSpacing" in ts:
-                decl.append(f"letter-spacing: {ts['letterSpacing']}px")
-            align = ts.get("textAlignHorizontal")
-            if align:
-                mapping = {"LEFT":"left","CENTER":"center","RIGHT":"right","JUSTIFIED":"justify"}
-                decl.append(f"text-align: {mapping.get(align,'left')}")
-            valign = ts.get("textAlignVertical")
-            if valign:
-                mapping = {"TOP":"top","CENTER":"middle","BOTTOM":"bottom"}
-                decl.append(f"vertical-align: {mapping.get(valign,'top')}")
-            decl.append("white-space: pre-wrap")
+        # Text nodes: apply text style and color (not background)
+        if n.get("kind") == "text":
+            text_style = styles.get("textStyle", {})
+            decls.extend(_text_style_css(text_style))
+            fills = styles.get("fills") or []
+            if fills:
+                p = fills[0]
+                if p.get("type") == "SOLID":
+                    color = p.get("color", {})
+                    opacity = p.get("opacity", color.get("a", 1.0))
+                    decls.append(f"color: {_rgba_from_color(color, opacity)}")
+            decls.append("white-space: pre-wrap")
+            decls.append("display: flex")
+            decls.append("align-items: center")
+            align = text_style.get("textAlignHorizontal")
+            if align == "CENTER":
+                decls.append("text-align: center")
+            elif align == "RIGHT":
+                decls.append("text-align: right")
+            else:
+                decls.append("text-align: left")
+            
 
-        # Emit CSS rule
-        lines.append(f".{class_name} {{")
-        for d in decl:
+        # write CSS block
+        lines.append(f".{cls} {{")
+        for d in decls:
             lines.append(f"  {d};")
         lines.append("}")
 
         # Recurse into children
-        for child in node.get("children", []):
-            walk(child, parent_is_flex=bool(flex))
+        # If this node has flex, its children should be considered inside a flex container.
+        child_parent_is_flex = bool(flex)
+        for c in n.get("children", []):
+            walk(c, parent_is_flex=child_parent_is_flex)
 
-    walk(root)
-    return "\n".join(lines), id_to_class
+    walk(root, parent_is_flex=False)
+    return "\n".join(lines)
 
-def generate_html(root: UiNode, id_to_class: dict[str,str]) -> str:
-    def render(node: UiNode) -> str:
-        cls = id_to_class[node["id"]]
-        kind = node["kind"]
-        children_html = "".join(render(c) for c in node.get("children", []))
+# -------------------------------
+# HTML generator using Jinja2
+# -------------------------------
+def generate_html(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
+    def _escape(text: str) -> str:
+        return (text or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+
+    def render(node: Dict[str, Any]) -> str:
+        cls = id_to_class.get(node["id"], "node_"+node["id"].replace(":", "_"))
+        kind = node.get("kind", "").lower()
+        name = node.get("name", "").lower()
+
+        # text node -> div with text
         if kind == "text":
-            inner = _escape_html(node.get("text",""))
-            return f'<div class="{cls}">{inner}</div>'
+            return f'<div class="{cls}">{_escape(node.get("text",""))}</div>'
+
+        # inputs
+        if "input" in name or "email" in name or "password" in name:
+            tp = "password" if "password" in name else "text"
+            placeholder = _escape(node.get("text","") or node.get("name",""))
+            return f'<input class="{cls}" type="{tp}" placeholder="{placeholder}"/>'
+
+        # buttons (heuristic)
+        if "button" in name or "sign in" in name or "continue" in name or "create account" in name:
+            label = _escape(node.get("text","") or node.get("name","Button"))
+            return f'<button class="{cls}">{label}</button>'
+
+        # frames / groups -> preserve container
+        children_html = "".join(render(c) for c in node.get("children", []))
         return f'<div class="{cls}">{children_html}</div>'
 
     body_html = render(root)
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Figma Export</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <div class="canvas">
-    {body_html}
-  </div>
-</body>
-</html>
-"""
-    return html
+    env = Environment(loader=FileSystemLoader(Path("templates")), autoescape=True)
+    template = env.get_template("export.html.j2")
+    return template.render(title="Figma Export", body_html=body_html)
