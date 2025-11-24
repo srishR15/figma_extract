@@ -98,8 +98,8 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
     lines.append("/* Reset */")
     lines.append("* { box-sizing: border-box; }")
     lines.append("html, body { height: 100%; }")
-    lines.append("body { margin: 0; padding: 20px; background: #111; display:flex; justify-content:center; }")
-    lines.append(f".canvas {{ position: relative; width: {int(root_w)}px; height: {int(root_h)}px; background: transparent; }}")
+    lines.append("body { margin: 0; padding: 0; background: #111;}")
+    lines.append(f".canvas {{ position: relative; width: {int(root_w)}px; height: {int(root_h)}px; background: transparent; overflow: hidden; margin: 0 auto;}}")
 
     def walk(n: Dict[str, Any], parent_is_flex: bool = False):
         nid = n["id"]
@@ -113,35 +113,25 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
             if ts.get("textAlignHorizontal") == "CENTER":
                 is_center_text = True
         # Coordinates relative to root frame (keeps your approach)
-        x = layout.get("x", 0)
-        y = layout.get("y", 0)
+        #x = layout.get("x", 0)
+        #y = layout.get("y", 0)
+        x = layout.get("abs_x", 0) - root_x
+        y = layout.get("abs_y", 0) - root_y
+
         w = layout.get("width", 0)
         h = layout.get("height", 0)
 
         decls: list[str] = []
-
-        # If the parent is a flex container, do NOT absolutely position this child.
-        # ---- Home Indicator detection (generic, NOT hard-coded) ----
-        #is_home_indicator = (
-        #    n.get("kind") == "frame"
-        #    and len(n.get("children", [])) == 1
-        #    and n["children"][0].get("kind") == "shape"
-        #    and h <= 30
-        #    and abs_y >= (root_h - 140) # close to bottom
-        #)
-
-        # ---- Positioning logic ----
-        #if is_home_indicator:
-        #    # Always absolute relative to root
-        #   decls.append("position: absolute")
-        #   decls.append("z-index: 9999")
-        #   decls.append(f"left: {int(x)}px")
-        #   decls.append(f"top: {int(y)}px")
+        
         if not parent_is_flex:
             # Normal absolute layout
             decls.append("position: absolute")
             decls.append(f"left: {int(x)}px")
-            decls.append(f"top: {int(y)}px")
+            if should_be_bottom_anchored(y, h, root_h):  # Implement this helper
+                bottom_val = root_h - (y + h)
+                decls.append(f"bottom: {int(bottom_val)}px")
+            else:
+                decls.append(f"top: {int(y)}px")
         else:
             # Child of flex container → allow natural flow
             decls.append("position: static")
@@ -233,6 +223,11 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
     walk(root, parent_is_flex=False)
     return "\n".join(lines)
 
+def should_be_bottom_anchored(y, h, root_h, threshold=12):
+    # Anchors if the bottom is very close to the canvas's bottom edge
+    return abs((y + h) - root_h) < threshold
+
+
 # -------------------------------
 # HTML generator using Jinja2
 # -------------------------------
@@ -268,7 +263,9 @@ def generate_html(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
         children_html = "".join(render(c) for c in node.get("children", []))
         return f'<div class="{cls}">{children_html}</div>'
 
-    body_html = render(root)
+    #body_html = render(root)
+    canvas_class = id_to_class[root["id"]]
+    body_html = f'<div class="{canvas_class} canvas">{render(root)}</div>'
     env = Environment(loader=FileSystemLoader(Path("templates")), autoescape=True)
     template = env.get_template("export.html.j2")
     return template.render(title="Figma Export", body_html=body_html)

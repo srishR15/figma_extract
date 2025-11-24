@@ -101,17 +101,19 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
 
     return ui
 
-#def apply_absolute_layout(node, parent_x=0, parent_y=0):
-#    layout = node.get("styles", {}).get("layout", {})
+def apply_absolute_layout(node, root_x=None, root_y=None):
+    layout = node.get("styles", {}).get("layout", {})
 
-#    rel_x = layout.get("x", 0)
-#    rel_y = layout.get("y", 0)
+    # First call → record root's global top-left
+    if root_x is None and root_y is None:
+        root_x = layout.get("x", 0)
+        root_y = layout.get("y", 0)
 
-#    abs_x = parent_x + rel_x
-#    abs_y = parent_y + rel_y
+    abs_x = layout.get("x", 0) - root_x
+    abs_y = layout.get("y", 0) - root_y
 
-#    layout["abs_x"] = abs_x
-#    layout["abs_y"] = abs_y
+    layout["abs_x"] = abs_x
+    layout["abs_y"] = abs_y
 
-#    for child in node.get("children", []):
-#        apply_absolute_layout(child, abs_x, abs_y)
+    for child in node.get("children", []):
+        apply_absolute_layout(child, root_x, root_y)
