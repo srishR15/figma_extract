@@ -90,8 +90,8 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
     """
     lines: list[str] = []
     root_layout = root.get("styles", {}).get("layout", {})
-    root_x = root_layout.get("x", 0)
-    root_y = root_layout.get("y", 0)
+    root_x = root_layout.get("abs_x", 0)
+    root_y = root_layout.get("abs_y", 0)
     root_w = root_layout.get("width", 0)
     root_h = root_layout.get("height", 0)
 
@@ -106,23 +106,47 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
         cls = id_to_class.get(nid, "node_"+nid.replace(":", "_"))
         styles = n.get("styles", {})
         layout = styles.get("layout", {})
-
+        # Detect if this node is center-aligned by text style
+        is_center_text = False
+        if n.get("kind") == "text":
+            ts = styles.get("textStyle", {})
+            if ts.get("textAlignHorizontal") == "CENTER":
+                is_center_text = True
         # Coordinates relative to root frame (keeps your approach)
-        x = layout.get("x", 0) - root_x
-        y = layout.get("y", 0) - root_y
+        x = layout.get("x", 0)
+        y = layout.get("y", 0)
         w = layout.get("width", 0)
         h = layout.get("height", 0)
 
         decls: list[str] = []
 
         # If the parent is a flex container, do NOT absolutely position this child.
+        # ---- Home Indicator detection (generic, NOT hard-coded) ----
+        #is_home_indicator = (
+        #    n.get("kind") == "frame"
+        #    and len(n.get("children", [])) == 1
+        #    and n["children"][0].get("kind") == "shape"
+        #    and h <= 30
+        #    and abs_y >= (root_h - 140) # close to bottom
+        #)
+
+        # ---- Positioning logic ----
+        #if is_home_indicator:
+        #    # Always absolute relative to root
+        #   decls.append("position: absolute")
+        #   decls.append("z-index: 9999")
+        #   decls.append(f"left: {int(x)}px")
+        #   decls.append(f"top: {int(y)}px")
         if not parent_is_flex:
+            # Normal absolute layout
             decls.append("position: absolute")
             decls.append(f"left: {int(x)}px")
             decls.append(f"top: {int(y)}px")
         else:
-            # let flex layout position child; use box-sizing defaults
+            # Child of flex container → allow natural flow
             decls.append("position: static")
+            if n.get("kind") == "text" and is_center_text:
+                decls.append("align-self: center")
 
         # Width/Height: keep widths/heights so fixed-size children still size,
         # but for children of flex parents we avoid forcing absolute coordinates.
@@ -179,11 +203,20 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
             align = text_style.get("textAlignHorizontal")
             if align == "CENTER":
                 decls.append("text-align: center")
+                decls.append("justify-content: center") 
             elif align == "RIGHT":
                 decls.append("text-align: right")
             else:
                 decls.append("text-align: left")
-            
+
+        #apply padding
+        pad = styles.get("padding", {})
+        if pad:
+            l = pad.get("paddingLeft", 0)
+            r = pad.get("paddingRight", 0)
+            t = pad.get("paddingTop", 0)
+            b = pad.get("paddingBottom", 0)
+            decls.append(f"padding: {t}px {r}px {b}px {l}px")    
 
         # write CSS block
         lines.append(f".{cls} {{")
@@ -216,6 +249,10 @@ def generate_html(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
         if kind == "text":
             return f'<div class="{cls}">{_escape(node.get("text",""))}</div>'
 
+        if kind == "shape":
+        # shapes normally have no text, only styles
+            children_html = "".join(render(c) for c in node.get("children", []))
+            return f'<div class="{cls}">{children_html}</div>'
         # inputs
         if "input" in name or "email" in name or "password" in name:
             tp = "password" if "password" in name else "text"
@@ -225,7 +262,7 @@ def generate_html(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
         # buttons (heuristic)
         if "button" in name or "sign in" in name or "continue" in name or "create account" in name:
             label = _escape(node.get("text","") or node.get("name","Button"))
-            return f'<button class="{cls}">{label}</button>'
+            return f'<button class="{cls}">{label}</button>' 
 
         # frames / groups -> preserve container
         children_html = "".join(render(c) for c in node.get("children", []))

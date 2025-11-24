@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 from figma_api import get_file, find_node_by_id
-from mapper import map_figma_to_ui, apply_absolute_layout
+from mapper import map_figma_to_ui
 from css_html import generate_css, generate_html
 
 def parse_args():
@@ -37,7 +37,7 @@ def main():
 
     # Map figma JSON → UiNode structure
     ui_root = map_figma_to_ui(node)
-    apply_absolute_layout(ui_root)
+    #apply_absolute_layout(ui_root)
     # Assign CSS classes BEFORE generating CSS
     id_to_class = {}
     assign_classes(ui_root, id_to_class)

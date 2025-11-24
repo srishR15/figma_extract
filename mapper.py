@@ -39,22 +39,55 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
             "primaryAlign": node.get("primaryAxisAlignItems"),
             "counterAlign": node.get("counterAxisAlignItems"),
         }
+
     fills = node.get("fills") or []
     if fills:
         styles["fills"] = fills
+
     strokes = node.get("strokes") or []
     if strokes:
         styles["strokes"] = strokes
+
     styles["strokeWeight"] = node.get("strokeWeight", 1)
     styles["strokeAlign"] = node.get("strokeAlign")
+
     if "cornerRadius" in node:
         styles["cornerRadius"] = node["cornerRadius"]
+
     if "rectangleCornerRadii" in node:
         styles["cornerRadii"] = node["rectangleCornerRadii"]
+
     if kind == "text" and node.get("style"):
         styles["textStyle"] = node["style"]
-    children = []
+
+    padding = {}
+    for key in ("paddingLeft", "paddingRight", "paddingTop", "paddingBottom"):
+        if key in node:
+            padding[key] = node[key]
+
+    if padding:
+        styles["padding"] = padding
+
+
+    # ---------------------------------------------------
+    # ⭐ CREATE UI NODE *FIRST*
+    # ---------------------------------------------------
+    ui: UiNode = {
+        "id": node["id"],
+        "name": node.get("name", ""),
+        "kind": kind,
+        "styles": styles,
+        "children": []
+    }
+
+    if kind == "text":
+        ui["text"] = node.get("characters", "")
+
+    # ---------------------------------------------------
+    # ⭐ NOW build children, attach parent
+    # ---------------------------------------------------
     seen_ids = set()
+
     for c in node.get("children", []):
         if not c.get("visible", True):
             continue
@@ -62,29 +95,23 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
         if cid in seen_ids:
             continue
         seen_ids.add(cid)
-        children.append(map_figma_to_ui(c))
-    ui: UiNode = {
-        "id": node["id"],
-        "name": node.get("name", ""),
-        "kind": kind,
-        "children": children,
-        "styles": styles,
-    }
-    if kind == "text":
-        ui["text"] = node.get("characters", "")
+        child_ui = map_figma_to_ui(c)
+        #child_ui["parent"] = ui       # <-- NOW VALID
+        ui["children"].append(child_ui)
+
     return ui
 
-def apply_absolute_layout(node, parent_x=0, parent_y=0):
-    layout = node.get("styles", {}).get("layout", {})
+#def apply_absolute_layout(node, parent_x=0, parent_y=0):
+#    layout = node.get("styles", {}).get("layout", {})
 
-    rel_x = layout.get("x", 0)
-    rel_y = layout.get("y", 0)
+#    rel_x = layout.get("x", 0)
+#    rel_y = layout.get("y", 0)
 
-    abs_x = parent_x + rel_x
-    abs_y = parent_y + rel_y
+#    abs_x = parent_x + rel_x
+#    abs_y = parent_y + rel_y
 
-    layout["abs_x"] = abs_x
-    layout["abs_y"] = abs_y
+#    layout["abs_x"] = abs_x
+#    layout["abs_y"] = abs_y
 
-    for child in node.get("children", []):
-        apply_absolute_layout(child, abs_x, abs_y)
+#    for child in node.get("children", []):
+#        apply_absolute_layout(child, abs_x, abs_y)
