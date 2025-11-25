@@ -2,6 +2,7 @@ import json
 import sys
 import os
 from pathlib import Path
+from util import get_figma_node
 
 UI_TREE = "UITree"
 def clean_figma_node(node):
@@ -64,14 +65,14 @@ def export_clean_ui_tree(figma_json):
     print(f"[OK] Exported cleaned UI tree to {ui_file}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python export_ui_tree.py <figma_json_file>")
+    if len(sys.argv) <= 3:
+        print("Usage: python export_ui_tree.py <figma_json_file> <node_id>")
         sys.exit(1)
     
-    # Assuming the Figma JSON file is in the current directory (or cache, as per original logic)
-    input_path = sys.argv[1]
-    input_path = os.path.join("cache", input_path)
-    
-    with open(input_path, "r", encoding="utf-8") as f:
-        figma_json = json.load(f)
-    export_clean_ui_tree(figma_json)
+    file_key = sys.argv[1]
+    node_id = sys.argv[2] if len(sys.argv) == 3 else None
+    #input_path = os.path.join("../cache", input_path)
+    node = get_figma_node(file_key, node_id, cache_dir="../cache")
+    #with open(file_key, "r", encoding="utf-8") as f:
+    #    figma_json = json.load(f)
+    export_clean_ui_tree({"document": node})

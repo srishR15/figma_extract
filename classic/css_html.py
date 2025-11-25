@@ -266,6 +266,6 @@ def generate_html(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
     #body_html = render(root)
     canvas_class = id_to_class[root["id"]]
     body_html = f'<div class="{canvas_class} canvas">{render(root)}</div>'
-    env = Environment(loader=FileSystemLoader(Path("templates")), autoescape=True)
+    env = Environment(loader=FileSystemLoader(Path("../templates")), autoescape=True)
     template = env.get_template("export.html.j2")
     return template.render(title="Figma Export", body_html=body_html)

@@ -8,7 +8,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: 100vh;
 }
 .frame {
   position: relative;
@@ -20,14 +20,14 @@ body {
 }
 .home-indicator {
   position: absolute;
-  bottom: 0px; /* 852 - (831 + 21) = 0 */
+  bottom: 0px;
   left: 0px;
   width: 393px;
   height: 21px;
 }
 .home-indicator-rect {
   position: absolute;
-  top: 8px; /* 839 - 831 = 8 */
+  top: 8px;
   left: 127px;
   width: 139px;
   height: 5px;
@@ -42,7 +42,6 @@ body {
   height: 58px;
   font-family: Inter, sans-serif;
   font-weight: 700;
-  font-style: normal;
   font-size: 48px;
   line-height: 57.6px;
   letter-spacing: -0.96px;
@@ -59,103 +58,113 @@ body {
   height: 117px;
   display: flex;
   flex-direction: column;
-  gap: 0px; /* no itemSpacing on vertical frame itself, spacing is inside children */
+  gap: 0px;
 }
 .frame-1321318734 {
-  width: 329px;
-  height: 58px;
   display: flex;
   flex-direction: row;
   align-items: center;
   padding: 20px 16px;
   gap: 10px;
+  width: 329px;
+  height: 58px;
   border: 1px solid rgba(215,215,215,1);
   box-sizing: border-box;
 }
-.headline-email {
-  width: 120px;
-  height: 18px;
+.headline-1 {
   font-family: Inter, sans-serif;
   font-weight: 500;
-  font-style: normal;
   font-size: 15px;
   line-height: 18px;
   letter-spacing: -0.3px;
   color: rgba(54,51,65,1);
+  text-align: left;
   display: flex;
   align-items: center;
-  text-align: left;
+  width: 120px;
+  height: 18px;
 }
 .frame-1321318735 {
-  width: 329px;
-  height: 59px;
   display: flex;
   flex-direction: row;
   align-items: center;
   padding: 20px 16px;
   gap: 10px;
+  width: 329px;
+  height: 59px;
   border: 1px solid rgba(215,215,215,1);
   box-sizing: border-box;
 }
-.headline-password {
-  width: 69px;
-  height: 18px;
+.headline-2 {
   font-family: Inter, sans-serif;
   font-weight: 500;
-  font-style: normal;
   font-size: 15px;
   line-height: 18px;
   letter-spacing: -0.3px;
   color: rgba(191,191,191,1);
+  text-align: left;
   display: flex;
   align-items: center;
-  text-align: left;
+  width: 69px;
+  height: 18px;
 }
-.sign-in-button {
+.frame-signin {
   position: absolute;
   top: 662px;
   left: 16px;
   width: 361px;
   height: 46px;
-  border-radius: 62px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  background: linear-gradient(126.4deg, rgba(149,34,140,1) 0%, rgba(58,60,179,1) 100%);
+  justify-content: center;
+  gap: 8px;
+  border-radius: 62px;
+  background: linear-gradient(126.7deg, rgba(149,34,140,1) 0%, rgba(58,60,179,1) 100%);
   backdrop-filter: blur(10px);
 }
-.sign-in-label {
+.label-text {
   font-family: Inter, sans-serif;
   font-weight: 600;
-  font-style: normal;
   font-size: 15px;
   line-height: 22px;
   letter-spacing: -0.15px;
   color: rgba(255,255,255,1);
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 49px;
+  height: 22px;
 }
-.create-account-button {
+.frame-create-account {
   position: absolute;
   top: 720px;
   left: 16px;
   width: 361px;
   height: 46px;
-  border-radius: 62px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 62px;
   background: rgba(225,224,230,1);
   backdrop-filter: blur(10px);
 }
-.create-account-label {
+.label-text-1 {
   font-family: Inter, sans-serif;
   font-weight: 600;
-  font-style: normal;
   font-size: 15px;
   line-height: 22px;
   letter-spacing: -0.15px;
   color: rgba(54,51,65,1);
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 110px;
+  height: 22px;
 }
 .forgot-password {
   position: absolute;
@@ -165,7 +174,6 @@ body {
   height: 37px;
   font-family: Inter, sans-serif;
   font-weight: 500;
-  font-style: normal;
   font-size: 13px;
   line-height: 15.6px;
   letter-spacing: -0.26px;

@@ -32,7 +32,7 @@ def find_node_by_id(root: Dict[str, Any], node_id: str) -> Optional[Dict[str, An
 # ------------------------------
 # CACHE SETUP
 # ------------------------------
-CACHE_DIR = "cache"
+CACHE_DIR = "../cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 def _cache_path(file_key: str) -> str:
