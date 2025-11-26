@@ -27,7 +27,7 @@ FIGMA_EXTRACT/
 │   ├── export_ui_tree.py                     # Cleans raw Figma JSON → produces minimal UI tree (ui.json)
 │   ├── figma_api.py                          # Fetches raw JSON from Figma API + saves it to cache
 │   ├── openai_generate.py                    # Sends cleaned UI tree to OpenAI → generates HTML + CSS
-│   ├── UITree//ui.json                       # Stores cleaned UI tree files (ui.json)
+│   ├── UITree/ui.json                        # Stores cleaned UI tree files (ui.json)
 │   ├── outputAI/                             # Final AI-generated output folder (output.html + styles.css)
 │   ├── util.py                               # Figma JSON loader + cache helper.
 │   └── __init__.py
