@@ -16,7 +16,7 @@ def clean_figma_node(node):
         "width": bbox.get("width"),
         "height": bbox.get("height"),
     }
-    # Include ALL CRITICAL STYLE AND LAYOUT KEYS for generalization
+    # Include ALL CRITICAL STYLE AND LAYOUT KEYS for generalization to provide openai with cleaned version of json file
     for key in (
         "fills", 
         "strokes", 
@@ -27,10 +27,10 @@ def clean_figma_node(node):
         "characters", 
         "style", 
         "opacity", 
-        "layoutMode",         # Auto-layout
+        "layoutMode",
         "primaryAxisAlignItems",
         "counterAxisAlignItems",
-        "paddingTop",           # Crucial for height/spacing
+        "paddingTop",
         "paddingBottom",
         "paddingLeft",
         "paddingRight",
@@ -43,16 +43,15 @@ def clean_figma_node(node):
         if key in node:
             clean[key] = node[key]
     
-    # Recursively clean children
     if "children" in node:
         clean["children"] = [clean_figma_node(child) for child in node["children"]]
     return clean
 
 def export_clean_ui_tree(figma_json):
-    # Find the outermost node
+    # Finding the outermost node
     root_node = figma_json.get("document") or figma_json.get("root") or figma_json
     
-    # Target the main design FRAME (ID 1:75 equivalent)
+    # Target the main design FRAME
     design_frame = root_node
     if root_node.get("children") and root_node["children"][0].get("type") in ["FRAME", "CANVAS", "COMPONENT"]:
         design_frame = root_node["children"][0]
@@ -71,8 +70,6 @@ if __name__ == "__main__":
     
     file_key = sys.argv[1]
     node_id = sys.argv[2] if len(sys.argv) == 3 else None
-    #input_path = os.path.join("../cache", input_path)
     node = get_figma_node(file_key, node_id, cache_dir="../cache")
-    #with open(file_key, "r", encoding="utf-8") as f:
-    #    figma_json = json.load(f)
+
     export_clean_ui_tree({"document": node})

@@ -1,6 +1,6 @@
 import os
 import json
-from figma_api import get_file, find_node_by_id  # adjust if import path changes
+from figma_api import get_file, find_node_by_id
 
 def get_figma_node(file_key, node_id=None, cache_dir="../cache"):
     cache_file = os.path.join(cache_dir, f"{file_key}.json")
