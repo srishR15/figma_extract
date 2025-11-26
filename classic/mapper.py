@@ -69,9 +69,8 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
         styles["padding"] = padding
 
 
-    # ---------------------------------------------------
-    # ⭐ CREATE UI NODE *FIRST*
-    # ---------------------------------------------------
+
+    # Creating UI Node
     ui: UiNode = {
         "id": node["id"],
         "name": node.get("name", ""),
@@ -83,9 +82,6 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
     if kind == "text":
         ui["text"] = node.get("characters", "")
 
-    # ---------------------------------------------------
-    # ⭐ NOW build children, attach parent
-    # ---------------------------------------------------
     seen_ids = set()
 
     for c in node.get("children", []):
@@ -96,7 +92,6 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
             continue
         seen_ids.add(cid)
         child_ui = map_figma_to_ui(c)
-        #child_ui["parent"] = ui       # <-- NOW VALID
         ui["children"].append(child_ui)
 
     return ui
@@ -104,7 +99,6 @@ def map_figma_to_ui(node: Dict[str, Any]) -> UiNode:
 def apply_absolute_layout(node, root_x=None, root_y=None):
     layout = node.get("styles", {}).get("layout", {})
 
-    # First call → record root's global top-left
     if root_x is None and root_y is None:
         root_x = layout.get("x", 0)
         root_y = layout.get("y", 0)

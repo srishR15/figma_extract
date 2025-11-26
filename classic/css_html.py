@@ -2,8 +2,6 @@ from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from typing import Dict, Any
 
-# NOTE: UiNode is a TypedDict in mapper.py, but we avoid importing typing here
-# to keep this file compatible with your current project.
 
 def _rgba_from_color(c: Dict[str, Any], opacity: float | None = None) -> str:
     if not c:
@@ -27,7 +25,6 @@ def _gradient_from_paint(paint: Dict[str, Any]) -> str | None:
         col = s["color"]
         pos = int(round(s.get("position", 0) * 100))
         parts.append(f"{_rgba_from_color(col)} {pos}%")
-    # Simplified: use left-to-right gradient
     return "linear-gradient(90deg, " + ", ".join(parts) + ")"
 
 def _extract_fill(styles: Dict[str, Any]) -> str | None:
@@ -62,7 +59,7 @@ def _text_style_css(text_style: Dict[str, Any]) -> list[str]:
     if not text_style:
         return decls
     if "fontFamily" in text_style:
-        # fallback sans-serif
+        # fallback to sans-serif
         decls.append(f"font-family: '{text_style['fontFamily']}', sans-serif;")
     if "fontSize" in text_style:
         decls.append(f"font-size: {text_style['fontSize']}px;")
@@ -78,9 +75,8 @@ def _text_style_css(text_style: Dict[str, Any]) -> list[str]:
         decls.append(f"text-align: {mapping.get(align,'left')};")
     return decls
 
-# -------------------------------
+
 # CSS generator
-# -------------------------------
 def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
     """
     Improved CSS generator:
@@ -106,15 +102,11 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
         cls = id_to_class.get(nid, "node_"+nid.replace(":", "_"))
         styles = n.get("styles", {})
         layout = styles.get("layout", {})
-        # Detect if this node is center-aligned by text style
         is_center_text = False
         if n.get("kind") == "text":
             ts = styles.get("textStyle", {})
             if ts.get("textAlignHorizontal") == "CENTER":
                 is_center_text = True
-        # Coordinates relative to root frame (keeps your approach)
-        #x = layout.get("x", 0)
-        #y = layout.get("y", 0)
         x = layout.get("abs_x", 0) - root_x
         y = layout.get("abs_y", 0) - root_y
 
@@ -124,27 +116,20 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
         decls: list[str] = []
         
         if not parent_is_flex:
-            # Normal absolute layout
             decls.append("position: absolute")
             decls.append(f"left: {int(x)}px")
-            if should_be_bottom_anchored(y, h, root_h):  # Implement this helper
+            if should_be_bottom_anchored(y, h, root_h):
                 bottom_val = root_h - (y + h)
                 decls.append(f"bottom: {int(bottom_val)}px")
             else:
                 decls.append(f"top: {int(y)}px")
         else:
-            # Child of flex container → allow natural flow
             decls.append("position: static")
             if n.get("kind") == "text" and is_center_text:
                 decls.append("align-self: center")
-
-        # Width/Height: keep widths/heights so fixed-size children still size,
-        # but for children of flex parents we avoid forcing absolute coordinates.
-        # If you want children to shrink/grow, you can add flex rules here.
         decls.append(f"width: {int(w)}px")
         decls.append(f"height: {int(h)}px")
 
-        # Auto-layout / flex for THIS node
         flex = styles.get("flex")
         if flex:
             decls.append("display: flex")
@@ -159,24 +144,20 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
             if flex.get("counterAlign"):
                 decls.append(f"align-items: {align_map.get(flex['counterAlign'],'flex-start')}")
 
-        # Background / fills — but DO NOT set background for text nodes (we set color instead)
         fill = _extract_fill(styles)
         if fill and n.get("kind") != "text":
             decls.append(f"background: {fill}")
 
-        # strokes / borders
         stroke = _extract_stroke(styles)
         if stroke:
             decls.append(f"border: {stroke}")
 
-        # corner radius
         if "cornerRadius" in styles:
             decls.append(f"border-radius: {styles['cornerRadius']}px")
         elif "cornerRadii" in styles:
             cr = styles["cornerRadii"]
             decls.append(f"border-radius: {cr[0]}px {cr[1]}px {cr[2]}px {cr[3]}px")
 
-        # Text nodes: apply text style and color (not background)
         if n.get("kind") == "text":
             text_style = styles.get("textStyle", {})
             decls.extend(_text_style_css(text_style))
@@ -214,8 +195,6 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
             lines.append(f"  {d};")
         lines.append("}")
 
-        # Recurse into children
-        # If this node has flex, its children should be considered inside a flex container.
         child_parent_is_flex = bool(flex)
         for c in n.get("children", []):
             walk(c, parent_is_flex=child_parent_is_flex)
@@ -224,13 +203,11 @@ def generate_css(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
     return "\n".join(lines)
 
 def should_be_bottom_anchored(y, h, root_h, threshold=12):
-    # Anchors if the bottom is very close to the canvas's bottom edge
+    # Anchors if the bottom is very close to the canvas's bottom edge and checks usual figma 12px
     return abs((y + h) - root_h) < threshold
 
 
-# -------------------------------
 # HTML generator using Jinja2
-# -------------------------------
 def generate_html(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
     def _escape(text: str) -> str:
         return (text or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
@@ -240,30 +217,26 @@ def generate_html(root: Dict[str, Any], id_to_class: Dict[str, str]) -> str:
         kind = node.get("kind", "").lower()
         name = node.get("name", "").lower()
 
-        # text node -> div with text
         if kind == "text":
             return f'<div class="{cls}">{_escape(node.get("text",""))}</div>'
 
         if kind == "shape":
-        # shapes normally have no text, only styles
             children_html = "".join(render(c) for c in node.get("children", []))
             return f'<div class="{cls}">{children_html}</div>'
-        # inputs
+        #input
         if "input" in name or "email" in name or "password" in name:
             tp = "password" if "password" in name else "text"
             placeholder = _escape(node.get("text","") or node.get("name",""))
             return f'<input class="{cls}" type="{tp}" placeholder="{placeholder}"/>'
 
-        # buttons (heuristic)
+        # buttons
         if "button" in name or "sign in" in name or "continue" in name or "create account" in name:
             label = _escape(node.get("text","") or node.get("name","Button"))
             return f'<button class="{cls}">{label}</button>' 
 
-        # frames / groups -> preserve container
         children_html = "".join(render(c) for c in node.get("children", []))
         return f'<div class="{cls}">{children_html}</div>'
 
-    #body_html = render(root)
     canvas_class = id_to_class[root["id"]]
     body_html = f'<div class="{canvas_class} canvas">{render(root)}</div>'
     env = Environment(loader=FileSystemLoader(Path("../templates")), autoescape=True)

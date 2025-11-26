@@ -26,7 +26,7 @@ def main():
     file_data = get_file(args.file_key)
     document = file_data["document"]
 
-    # locate requested node
+    # locate requested node in argument
     node = document
     if args.node_id:
         found = find_node_by_id(document, args.node_id)
@@ -38,7 +38,7 @@ def main():
     # Map figma JSON → UiNode structure
     ui_root = map_figma_to_ui(node)
     apply_absolute_layout(ui_root)
-    # Assign CSS classes BEFORE generating CSS
+    # Assign the CSS classes BEFORE generating CSS
     id_to_class = {}
     assign_classes(ui_root, id_to_class)
 
